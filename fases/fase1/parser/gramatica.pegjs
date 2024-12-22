@@ -7,9 +7,10 @@
     import { ids, usos} from '../index.js'
     import { ErrorReglas } from './error.js';
     import { errores } from '../index.js'
+    import * as n from '../../fase2/src/lib/CST.js';
 }}
 
-gramatica = _ producciones+ _ {
+gramatica = _ producciones:producciones+ _ {
 
     let duplicados = ids.filter((item, index) => ids.indexOf(item) !== index);
     if (duplicados.length > 0) {
@@ -21,15 +22,25 @@ gramatica = _ producciones+ _ {
     if (noEncontrados.length > 0) {
         errores.push(new ErrorReglas("Regla no encontrada: " + noEncontrados[0]));
     }
+    return producciones;
 }
 
-producciones = _ id:identificador _ (literales)? _ "=" _ opciones (_";")? { ids.push(id) }
+producciones = _ id:identificador _ alias:(literales)? _ "=" _ expr:opciones (_";")? {
+    ids.push(id);
+    return new n.Producciones(id, expr, alias);
+  }
 
-opciones = union (_ "/" _ union)*
+opciones = inicio:union resto:(_ "/" _ @union)* {
+    return new n.Opciones([inicio, ...resto]);
+  }
 
-union = expresion (_ expresion !(_ literales? _ "=") )*
+union = inicio:expresion resto:(_ @expresion !(_ literales? _ "=") )* {
+    return new n.Union([inicio, ...resto]);
+  }
 
-expresion = ("@")? _ id:(identificador _ ":")?_ varios? _ expresiones _ ([?+*]/conteo)?
+expresion = ("@")? _ id:(identificador _ ":")?_ label:varios? _ expr:expresiones _ qty:([?+*]/conteo)?{
+    return new n.Expresion(id, label, expr,qty);
+  }
 
 //ERRORES ENCONTRADOS: podia venir @pluck:@"expresion"  o 
 /*expresion  = (etiqueta/varios)? _ expresiones _ ([?+*]/conteo)?
@@ -38,12 +49,12 @@ etiqueta = ("@")? _ id:identificador _ ":" (varios)?
 
  varios = ("!"/"$"/"@"/"&")*/
 
-varios = ("!"/"&"/"$")
+varios = val:("!"/"&"/"$"){return new n.Varios(val);  }
 
-expresiones  =  id:identificador { usos.push(id) }
-                / literales "i"?
-                / "(" _ opciones _ ")"
-                / corchetes "i"?
+expresiones  =  expr:identificador {return new n.Expresiones(expr);  }
+                / expr:$literales isCase:"i"?{return new n.String(expr.replace(/['"]/g, ''), isCase);  }
+                / "(" _ expr:opciones _ ")"{return new n.Expresiones(expr);  }
+                / expr:corchetes "i"?{return new n.Expresiones(expr);  }
                 / "."
                 / "!."
 
@@ -63,22 +74,21 @@ conteo = "|" _ (numero / id:identificador) _ "|"
 // Regla principal que analiza corchetes con contenido
 corchetes
     = "[" contenido:(rango / texto)+ "]" {
-        return `Entrada válida: [${input}]`;
+        return new n.Corchetes(contenido);
     }
 
 // Regla para validar un rango como [A-Z]
 rango
     = inicio:caracter "-" fin:caracter {
-        if (inicio.charCodeAt(0) > fin.charCodeAt(0)) {
+        if (inicio.char.charCodeAt(0) > fin.char.charCodeAt(0)) {
             throw new Error(`Rango inválido: [${inicio}-${fin}]`);
-
         }
-        return `${inicio}-${fin}`;//se debe crear la lista
+        return new n.Rango(inicio, fin); 
     }
 
 // Regla para caracteres individuales
 caracter
-    = [a-zA-Z0-9_ ] { return text()}
+    = data:[a-zA-Z0-9_ ] { return new n.Caracter(data); }
 
 
 
@@ -97,18 +107,25 @@ caracter
 // Coincide con cualquier contenido que no incluya "]"
 
 texto
-    = [^\[\]]
+    = val:[^\[\]]{
+        return new n.String(val);
+    }
 
-literales = '"' stringDobleComilla* '"'
+literales = '"' val:stringDobleComilla* '"' 
             / "'" stringSimpleComilla* "'"
 
-stringDobleComilla = !('"' / "\\" / finLinea) .
-                    / "\\" escape
+stringDobleComilla =!('"' / "\\" / finLinea) .{
+         return text();
+    } / "\\" escape 
                     //(se quitaron porque peggyjs no acepta cadenas con multilinea) igual no funcionaba xd
                     // / continuacionLinea
 
-stringSimpleComilla = !("'" / "\\" / finLinea) .
-                    / "\\" escape
+stringSimpleComilla = !("'" / "\\" / finLinea) . { 
+        return this.text(); 
+    }
+                    / "\\" escape { 
+        return this.text(); 
+    }
                     //(se quitaron porque peggyjs no acepta cadenas con multilinea) igual no funcionaba xd
                     // / continuacionLinea
 
@@ -117,7 +134,7 @@ stringSimpleComilla = !("'" / "\\" / finLinea) .
 
 continuacionLinea = "\\" secuenciaFinLinea
 
-finLinea = [\n\r\u2028\u2029]
+finLinea = data:[\n\r\u2028\u2029]{return new n.FinLinea(data); }
 
 escape = "'"
         / '"'
@@ -137,10 +154,11 @@ secuenciaFinLinea = "\r\n" / "\n" / "\r" / "\u2028" / "\u2029"
 //     / "'" [^']* "'"
     
 
-numero = [0-9]+
+numero = val:[0-9]+{
+    return new n.Numero(val);
+  }
 
-identificador = [_a-z]i[_a-z0-9]i* { return text() }
-
+identificador = id:[_a-z]i[_a-z0-9]i* {return new n.Identificador(id); }
 
 _ = (Comentarios /[ \t\n\r])*
 

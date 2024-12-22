@@ -1,7 +1,7 @@
 import * as monaco from 'https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/+esm';
 import { parse } from './parser/gramatica.js';
 import { ErrorReglas } from './parser/error.js';
-
+import  { generateTokenizer }  from '../fase2/src/lib/utils.js';
 
 export let ids = []
 export let usos = []
@@ -36,16 +36,18 @@ const analizar = () => {
     ids.length = 0
     usos.length = 0
     errores.length = 0
+    const botonDescargar = document.getElementById('descargar');
     try {
         const cst = parse(entrada)
-
+        
         if(errores.length > 0){
             salida.setValue(
                 `Error: ${errores[0].message}`
             );
             return
-        }else{
-            salida.setValue("Análisis Exitoso");
+        } else {
+            salida.setValue("correcto");
+            botonDescargar.style.display = 'block';
         }
 
         // salida.setValue("Análisis Exitoso");
@@ -102,7 +104,29 @@ const analizar = () => {
 editor.onDidChangeModelContent(() => {
     analizar();
 });
-
+let downloadHappening = false;
+const button = document.getElementById('BotonDescarga');
+button.addEventListener('click', () => {
+    if (downloadHappening) return;
+    if (!cst) {
+        alert('Escribe una gramatica valida');
+        return;
+    }
+    let url;
+    generateTokenizer(cst)
+        .then((fileContents) => {
+            const blob = new Blob([fileContents], { type: 'text/plain' });
+            url = URL.createObjectURL(blob);
+            button.href = url;
+            downloadHappening = true;
+            button.click();
+        })
+        .finally(() => {
+            URL.revokeObjectURL(url);
+            button.href = '#';
+            downloadHappening = false;
+        });
+});
 // CSS personalizado para resaltar el error y agregar un warning
 const style = document.createElement('style');
 style.innerHTML = `
@@ -116,3 +140,4 @@ style.innerHTML = `
     }
 `;
 document.head.appendChild(style);
+
