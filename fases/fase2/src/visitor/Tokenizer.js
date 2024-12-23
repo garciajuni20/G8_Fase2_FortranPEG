@@ -1,6 +1,6 @@
 import Visitor from './Visitor.js';
 import { Rango,String,Clase,Character } from './CST.js';
-
+import { CondicionalStrSencilla, LiteralPor } from './Utilidades.js';
 export default class Tokenizer extends Visitor {
     generateTokenizer(grammar) {
         return `
@@ -24,6 +24,9 @@ contains
         integer, intent(inout) :: cursor
         character(len=:), allocatable :: lexeme
         character(len=:), allocatable :: entrada_anterior
+        character(len=:), allocatable :: lexeme_accumulated
+        logical :: cicloActivo
+        integer :: cursorAux
         integer :: i
 
         if (cursor > len(input)) then
@@ -113,32 +116,56 @@ end program test`;
         return node.exprs.map((node) => node.accept(this)).join('\n');
     }
     visitUnion(node) {
-        // console.log(node.alias);
         let fortran = "";
         if (node.exprs.length == 1){  // Si solo hay una expresión en la gramática pero solo literales
             if (node.exprs[0].expr instanceof String){
-            if (node.exprs[0].expr.isCase == 'i') {
-                // Comparación insensible a mayúsculas y minúsculas
-        return `
-    if (to_lower("${node.exprs[0].expr.val}") == to_lower(input(cursor:cursor + ${node.exprs[0].expr.val.length - 1}))) then !Foo
-        allocate(character(len=${node.exprs[0].expr.val.length}) :: lexeme)
-        lexeme = input(cursor:cursor + ${node.exprs[0].expr.val.length - 1})
-        lexeme = lexeme // " - " // "${node.alias}"
-        cursor = cursor + ${node.exprs[0].expr.val.length}
-        return
-    end if
-            `;
-            }
-        return `
-    if ("${node.exprs[0].expr.val}" == input(cursor:cursor + ${node.exprs[0].expr.val.length - 1})) then !Foo
-        allocate(character(len=${node.exprs[0].expr.val.length}) :: lexeme)
-        lexeme = input(cursor:cursor + ${node.exprs[0].expr.val.length - 1})
-        lexeme = lexeme // " - " // "${node.alias}"
-        cursor = cursor + ${node.exprs[0].expr.val.length}
-        return
-    end if`
-            
-        }else if (node.exprs[0].expr instanceof Clase)     {
+                let condicional;
+                switch(node.exprs[0].qty){
+                    
+                    case "*":
+                        condicional = CondicionalStrSencilla(node);
+                        return `
+                        cicloActivo = .true.
+                        cursorAux = cursor  
+                        allocate(character(len=0) :: lexeme_accumulated)  
+                        do while (cicloActivo)	
+                            if ( ${condicional} ) then
+                                cursor = cursor + ${node.exprs[0].expr.val.length}
+                                lexeme_accumulated = lexeme_accumulated // "${node.exprs[0].expr.val}"
+                            else
+                                cicloActivo = .false.
+                            end if
+                        end do
+                        if (len(lexeme_accumulated) > 0) then
+                            allocate(character(len=len(lexeme_accumulated)) :: lexeme)
+                            lexeme = lexeme_accumulated
+                            return
+                        end if`
+
+                /*case "+":
+                    return PositivaLiterales(node.expr);
+
+                case "?":
+                    return TernariaLiterales(node.expr);*/
+                default:
+                    const exprVal = node.exprs[0].expr.val;
+                    const exprLength = exprVal.length;
+                    const cursorSlice = `input(cursor:cursor + ${exprLength - 1})`;
+                    const allocation = `
+                        allocate(character(len=${exprLength}) :: lexeme)
+                        lexeme = ${cursorSlice}
+                        lexeme = lexeme // " - " // "${node.alias}"
+                        cursor = cursor + ${exprLength}`;
+                
+                    condicional = CondicionalStrSencilla(node);
+                
+                    return `
+                    if (${condicional}) then !Foo
+                        ${allocation}
+                        return
+                    end if`;
+                }
+                 }else if (node.exprs[0].expr instanceof Clase)     {
             for(const expr of node.exprs[0].expr.chars) {
                 var condicion = ''
                 if(expr instanceof Rango) {

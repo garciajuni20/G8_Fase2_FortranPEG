@@ -19,6 +19,9 @@ contains
         integer, intent(inout) :: cursor
         character(len=:), allocatable :: lexeme
         character(len=:), allocatable :: entrada_anterior
+        character(len=:), allocatable :: lexeme_accumulated
+        logical :: cicloActivo
+        integer :: cursorAux
         integer :: i
 
         if (cursor > len(input)) then
@@ -28,68 +31,22 @@ contains
         end if
 
         
-	if ("atacar" == input(cursor:cursor + 5)) then 
-	    allocate(character(len=6) :: lexeme)
-	    allocate(character(len=6) :: entrada_anterior)
-	    lexeme = "atacar"
-	    entrada_anterior = lexeme
-	    cursor = cursor + 6 
-		if (":" == input(cursor:cursor + 0)) then 
-	    	deallocate(lexeme)
-	    	allocate(character(len=7) :: lexeme)
-	    	lexeme = entrada_anterior // input(cursor:cursor + 0)
-	    	deallocate(entrada_anterior)
-	    	entrada_anterior = lexeme
-	    	cursor = cursor + 1
-    		if (input(cursor:cursor) == Char(32)) then
-    	    	deallocate(lexeme)
-    	    	allocate(character(len=1) :: lexeme)
-    	    	lexeme = entrada_anterior // input(cursor:cursor)
-    	    	deallocate(entrada_anterior)
-    	    	entrada_anterior = lexeme
-    	    	cursor = cursor + 1
-				return
-			end if
-		end if
-	end if
-
-    if (to_lower(input(cursor:cursor)) >= 'a' .and. to_lower(input(cursor:cursor)) <= 'j') then
-        allocate(character(len=1) :: lexeme)  ! Reservar espacio para el lexema
-        lexeme = input(cursor:cursor)        ! Asignar el carácter al lexema
-        lexeme = lexeme // " - " // "columna"
-        cursor = cursor + 1                  ! Avanzar el cursor
-        return
-    end if
-                
-
-    	if (input(cursor:cursor) == Char(48)) then
-    	    allocate(character(len=1) :: lexeme)  ! Reservar espacio para el lexema
-    	    lexeme = input(cursor:cursor)        ! Asignar el carácter al lexema
-    	    if (.not. allocated(entrada_anterior)) then
-    	        allocate(character(len=len(lexeme)) :: entrada_anterior)
-    	    end if
-    	    entrada_anterior = lexeme
-    	    cursor = cursor + 1                  ! Avanzar el cursor
-                    
-    		if (input(cursor:cursor) >= '1' .and. input(cursor:cursor) <= '9') then
-    	    	deallocate(lexeme)
-    	    	allocate(character(len=1) :: lexeme)
-    	    	lexeme = entrada_anterior // input(cursor:cursor)
-    	    	lexeme = lexeme // " - " // "fila"
-    	    	deallocate(entrada_anterior)
-    	    	entrada_anterior = lexeme
-    	    	cursor = cursor + 1
-			return
-		end if
-	end if
-
-    if ("10" == input(cursor:cursor + 1)) then !Foo
-        allocate(character(len=2) :: lexeme)
-        lexeme = input(cursor:cursor + 1)
-        lexeme = lexeme // " - " // "fila"
-        cursor = cursor + 2
-        return
-    end if
+                        cicloActivo = .true.
+                        cursorAux = cursor  
+                        allocate(character(len=0) :: lexeme_accumulated)  
+                        do while (cicloActivo)	
+                            if ( "ar" == input(cursor:cursor + 1) ) then
+                                cursor = cursor + 2
+                                lexeme_accumulated = lexeme_accumulated // "ar"
+                            else
+                                cicloActivo = .false.
+                            end if
+                        end do
+                        if (len(lexeme_accumulated) > 0) then
+                            allocate(character(len=len(lexeme_accumulated)) :: lexeme)
+                            lexeme = lexeme_accumulated
+                            return
+                        end if
 
         print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
         lexeme = "ERROR"
