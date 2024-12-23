@@ -31,11 +31,20 @@ contains
         end if
 
         
-                                        cursorAux = cursor    
+                    cursorAux = cursor    
                     cicloActivo = .true.
                     allocate(character(len=0) :: lexemeAux) 
+                    if ( input(cursor:cursor) >= 't' .and. input(cursor:cursor) <= 'v' ) then
+                                lexemeAux = lexemeAux // input(cursor:cursor) 
+                                cursor = cursor + 1 
+                            else
+                                print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
+                                allocate(character(len=5) :: lexeme)
+                                lexeme = "ERROR"
+                                return
+                            end if
                     do while (cicloActivo)	 
-                        if (input(cursor:cursor) >= 't' .and. input(cursor:cursor) <= 'z') then
+                        if (input(cursor:cursor) >= 't' .and. input(cursor:cursor) <= 'v') then
                             lexemeAux = lexemeAux // input(cursor:cursor) 
                             cursor = cursor + 1   
                             else
@@ -45,7 +54,7 @@ contains
                         if (len(lexemeAux) > 0) then
                             allocate(character(len=1) :: lexeme)  
                             lexeme = lexemeAux
-                            lexeme = lexeme // " - " // "regla"
+                            lexeme = lexeme // " - " // "r"
                             cursor = cursor + 1                  ! Avanzar el cursor
                             return
                         end if

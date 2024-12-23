@@ -234,40 +234,92 @@ end program test`;
                             allocate(character(len=1) :: lexeme)  
                             lexeme = lexemeAux
                             lexeme = lexeme // " - " // "${node.alias}"
-                            cursor = cursor + 1                  ! Avanzar el cursor
                             return
                         end if
                         `
                 case "+":
                     return `
+    ! Procesar caracteres adicionales
+    do while (ejecuta_ciclo)
+        if (cursor > len(input)) exit
+        if (${condicional}) then
+            lexeme_accumulated = lexeme_accumulated // input(cursor:cursor)
+            cursor = cursor + 1
+        else
+            ejecuta_ciclo = .false.
+        end if
+    end do
+
+    ! Verificar si se acumuló algún lexema válido
+    if (len(lexeme_accumulated) > 0) then
+        allocate(character(len=len(lexeme_accumulated)) :: lexeme)
+        lexeme = lexeme_accumulated
+        return
+    end if
+
+    ! Manejo de EOF explícito
+    if (cursor > len(input)) then
+        allocate(character(len=3) :: lexeme)
+        lexeme = "EOF"
+        return
+    end if
+
                     cursorAux = cursor    
                     cicloActivo = .true.
                     allocate(character(len=0) :: lexemeAux) 
-                    if ( ${condicional} ) then
-                                lexemeAux = lexemeAux // input(cursor:cursor) 
-                                cursor = cursor + 1 
-                            else
-                                print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
-                                allocate(character(len=5) :: lexeme)
-                                lexeme = "ERROR"
-                                return
-                            end if
-                    do while (cicloActivo)	 
+                        ! Verificar EOF antes de cualquier operación
+                    if (cursor > len(input)) then
+                        allocate(character(len=3) :: lexeme)
+                        lexeme = "EOF"
+                        return
+                    end if
+                        ! Validar al menos un carácter
                         if (${condicion}) then
-                            lexemeAux = lexemeAux // input(cursor:cursor) 
-                            cursor = cursor + 1   
+                            lexemeAux = lexemeAux // input(cursor:cursor)
+                            cursor = cursor + 1
+                        else
+                            print *, "Error léxico en col ", cursor, ', "'//input(cursor:cursor)//'"'
+                            allocate(character(len=5) :: lexeme)
+                            lexeme = "ERROR"
+                            return
+                        end if
+
+
+                        do while (cicloActivo)
+                            if (cursor > len(input)) exit
+                            if (${condicional}) then
+                                lexemeAux = lexemeAux // input(cursor:cursor)
+                                cursor = cursor + 1
                             else
                                 cicloActivo = .false.
                             end if
                         end do
                         if (len(lexemeAux) > 0) then
-                            allocate(character(len=1) :: lexeme)  
+                            allocate(character(len=len(lexemeAux)) :: lexeme)
                             lexeme = lexemeAux
-                            lexeme = lexeme // " - " // "${node.alias}"
-                            cursor = cursor + 1                  ! Avanzar el cursor
+                            return
+                        end if
+                        ! Manejo de EOF explícito
+                        if (cursor > len(input)) then
+                            allocate(character(len=3) :: lexeme)
+                            lexeme = "EOF"
                             return
                         end if
                         `      
+                case "?":
+                    return `
+                        cursorAux = cursor
+                        allocate(character(len=0) :: lexemeAux)
+                            if (${condicional}) then
+                                lexemeAux = lexemeAux // input(cursor:cursor)
+                                cursor = cursor + 1
+                            end if
+                            if (len(lexemeAux) > 0) then
+                                allocate(character(len=len(lexemeAux)) :: lexeme)
+                                lexeme = lexemeAux
+                                return
+                            end if
+                    `
                 default: 
                 return ` 
                 if (${condicion}) then
