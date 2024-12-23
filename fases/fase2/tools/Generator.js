@@ -1,8 +1,15 @@
+// Generar clases para AST
+// Este archivo genera las clases necesarias para implementar el patrón visitante con Typescript
+
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import nodes from './Nodes.js';
 
-const __dirname = import.meta.dirname;
+// Definir __dirname para módulos ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const classesDestination = '../src/visitor/CST.js';
 const visitorDestination = '../src/visitor/Visitor.js';
 
