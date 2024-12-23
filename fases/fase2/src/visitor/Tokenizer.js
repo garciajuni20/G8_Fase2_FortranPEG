@@ -219,7 +219,7 @@ end program test`;
             switch(node.exprs[0].qty){
                 case "*":
                     return `
-                                        cursorAux = cursor    
+                    cursorAux = cursor    
                     cicloActivo = .true.
                     allocate(character(len=0) :: lexemeAux) 
                     do while (cicloActivo)	 
@@ -238,6 +238,36 @@ end program test`;
                             return
                         end if
                         `
+                case "+":
+                    return `
+                    cursorAux = cursor    
+                    cicloActivo = .true.
+                    allocate(character(len=0) :: lexemeAux) 
+                    if ( ${condicional} ) then
+                                lexemeAux = lexemeAux // input(cursor:cursor) 
+                                cursor = cursor + 1 
+                            else
+                                print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
+                                allocate(character(len=5) :: lexeme)
+                                lexeme = "ERROR"
+                                return
+                            end if
+                    do while (cicloActivo)	 
+                        if (${condicion}) then
+                            lexemeAux = lexemeAux // input(cursor:cursor) 
+                            cursor = cursor + 1   
+                            else
+                                cicloActivo = .false.
+                            end if
+                        end do
+                        if (len(lexemeAux) > 0) then
+                            allocate(character(len=1) :: lexeme)  
+                            lexeme = lexemeAux
+                            lexeme = lexeme // " - " // "${node.alias}"
+                            cursor = cursor + 1                  ! Avanzar el cursor
+                            return
+                        end if
+                        `      
                 default: 
                 return ` 
                 if (${condicion}) then
