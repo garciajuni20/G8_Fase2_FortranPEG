@@ -31,31 +31,24 @@ contains
         end if
 
         
-                            cursorAux = cursor  
-                            cicloActivo = .true.
-                            allocate(character(len=0) :: lexemeAux)  
-                            if ( "a" == input(cursor:cursor + 0) ) then
-                                cursor = cursor + 1
-                                lexemeAux = "a"
+                                        cursorAux = cursor    
+                    cicloActivo = .true.
+                    allocate(character(len=0) :: lexemeAux) 
+                    do while (cicloActivo)	 
+                        if (input(cursor:cursor) >= 't' .and. input(cursor:cursor) <= 'z') then
+                            lexemeAux = lexemeAux // input(cursor:cursor) 
+                            cursor = cursor + 1   
                             else
-                                print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
-                                allocate(character(len=5) :: lexeme)
-                                lexeme = "ERROR"
-                                return
+                                cicloActivo = .false.
                             end if
-                            do while (cicloActivo)	
-                                if ( "a" == input(cursor:cursor + 0) ) then
-                                    cursor = cursor + 1
-                                    lexemeAux = lexemeAux // "a"
-                                else
-                                    cicloActivo = .false.
-                                end if
-                            end do
-                            if (len(lexemeAux) > 0) then
-                                allocate(character(len=len(lexemeAux)) :: lexeme)
-                                lexeme = lexemeAux
-                                return
-                            end if
+                        end do
+                        if (len(lexemeAux) > 0) then
+                            allocate(character(len=1) :: lexeme)  
+                            lexeme = lexemeAux
+                            lexeme = lexeme // " - " // "regla"
+                            cursor = cursor + 1                  ! Avanzar el cursor
+                            return
+                        end if
                         
 
         print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'

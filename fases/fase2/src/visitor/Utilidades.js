@@ -25,3 +25,16 @@ export function LiteralPor(exprNode) {
 
 `
 }
+export function LiteralPorRepeInicio(exprNode) {
+    const condicional = CondicionalStrings(exprNode);
+    return `
+    cursorAux = cursor    
+    cicloActivo = .true.
+    allocate(character(len=0) :: lexemeAux)  
+    do while (cicloActivo)	
+        if ( ${condicional} ) then
+            cursor = cursor + ${exprNode.expr.val.length}
+            lexemeAux = lexemeAux // "${exprNode.expr.val}"
+
+`
+}
