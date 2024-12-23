@@ -1,8 +1,9 @@
 import Visitor from './Visitor.js';
-import { Rango,String,Clase,Character } from './CST.js';
+import { Rango,String,Clase } from './CST.js';
 
 export default class Tokenizer extends Visitor {
     generateTokenizer(grammar) {
+        console.log('GRAMMAR', grammar)
         return `
 module tokenizer
     implicit none
@@ -47,7 +48,7 @@ contains
 
     subroutine parse(input)
         character(len=:), intent(inout), allocatable :: input
-        character(len=100) :: lexeme
+        character(len=*) :: lexeme
         integer :: cursor
 
         lexeme = ""
@@ -91,6 +92,7 @@ end program test`;
     }
 
     visitProducciones(node) {
+        console.log('PRODUCCIONES', node);
         try {
             const aliasString = node.alias
             .map(subArray => subArray[1]) 
@@ -103,9 +105,11 @@ end program test`;
             node.alias = node.id;
             node.expr.alias = node.alias;
         }
+        // console.log(node);
         return node.expr.accept(this);
     }
     visitOpciones(node) {
+        console.log('OPCIONES', node);
         let prueba = node
         // console.log(node.exprs);
         node.exprs.map((node) => node.alias = prueba.alias);
@@ -113,6 +117,7 @@ end program test`;
         return node.exprs.map((node) => node.accept(this)).join('\n');
     }
     visitUnion(node) {
+        console.log('UNION', node)
         // console.log(node.alias);
         let fortran = "";
         if (node.exprs.length == 1){  // Si solo hay una expresión en la gramática pero solo literales
@@ -139,44 +144,46 @@ end program test`;
     end if`
             
         }else if (node.exprs[0].expr instanceof Clase)     {
-            for(const expr of node.exprs[0].expr.chars) {
-                var condicion = ''
-                if(expr instanceof Rango) {
-                    let bot = expr.bottom;
-                    let top = expr.top;
-                    if (node.exprs[0].expr.isCase == 'i') {
-                        // Case insensitive
-                        condicion += `${condicion !== '' ? ' .or. ' : ''}to_lower(input(cursor:cursor)) >= '${bot}' .and. to_lower(input(cursor:cursor)) <= '${top}'`
-                    } else {
-                        // Case sensitive
-                        condicion += `${condicion !== '' ? ' .or. ' : ''}input(cursor:cursor) >= '${bot}' .and. input(cursor:cursor) <= '${top}'`
-                    }
-                } else { // Character
-                    if (node.exprs[0].expr.isCase == 'i') {
-                        // Case insensitive
-                        condicion += `${condicion !== '' ? ' .or. ' : ''}to_lower(input(cursor:cursor)) == Char(${expr.text.charCodeAt(0)})`
-                    } else {
-                        // Case sensitive
-                        condicion += `${condicion !== '' ? ' .or. ' : ''}input(cursor:cursor) == Char(${expr.text.charCodeAt(0)})`
-                    }
-                }
+            console.log('===========CLASE1', node)
+            let bot =node.exprs[0].expr.chars[0].bottom;
+            let top =node.exprs[0].expr.chars[0].top;
+            if (node.exprs[0].expr.isCase == 'i') {
+                // Comparación insensible a mayúsculas y minúsculas
+                return `
+    if (to_lower(input(cursor:cursor)) >= '${bot}' .and. to_lower(input(cursor:cursor)) <= '${top}') then
+        allocate(character(len=1) :: lexeme)  ! Reservar espacio para el lexema
+        lexeme = input(cursor:cursor)        ! Asignar el carácter al lexema
+        lexeme = lexeme // " - " // "${node.alias}"
+        cursor = cursor + 1                  ! Avanzar el cursor
+        return
+    end if
+                `;
+            } else {
+                // Comparación sensible a mayúsculas y minúsculas
+                return `
+    if (input(cursor:cursor) >= '${bot}' .and. input(cursor:cursor) <= '${top}') then
+        allocate(character(len=1) :: lexeme)  ! Reservar espacio para el lexema
+        lexeme = input(cursor:cursor)        ! Asignar el carácter al lexema
+        lexeme = lexeme // " - " // "${node.alias}"
+        cursor = cursor + 1                  ! Avanzar el cursor
+        return
+    end if
+                `;
             }
-            return `
-            if (${condicion}) then
-                allocate(character(len=1) :: lexeme)  ! Reservar espacio para el lexema
-                lexeme = input(cursor:cursor)        ! Asignar el carácter al lexema
-                lexeme = lexeme // " - " // "${node.alias}"
-                cursor = cursor + 1                  ! Avanzar el cursor
-                return
-            end if`
         }
+
     }
 
+
+
+    console.log('UNION', node)
         let repeticiones = 0;
         let total_nodos = node.exprs.length;
+        console.log(total_nodos + " Nodos");
         let longitud = 0;
         // console.log(node);
         node.exprs.forEach(element => {
+            console.log(element);
             const tabuladores = "\t".repeat(repeticiones);
             // console.log(element.expr);
             if (element.expr instanceof String){
@@ -262,35 +269,60 @@ end program test`;
                     } 
             }
         }else if (element.expr instanceof Clase){
-            var condicion = ''
-            for(const expr of element.expr.chars) {
-                if(expr instanceof Rango) {
-                    let bot = expr.bottom;
-                    let top = expr.top;
-                    if (element.expr.isCase == 'i') {
-                        // console.log("Case insensitive");
-                        if (bot < top){
-                            condicion += (condicion !== '' ? ' .or. ' : '') + `to_lower(input(cursor:cursor)) >= '${bot}' .and. to_lower(input(cursor:cursor)) <= '${top}'`
-                        }
+            
+            let bot =element.expr.chars[0].bottom;
+            let top =element.expr.chars[0].top;
+            if (element.expr.isCase == 'i') {
+                console.log("Case insensitive");
+                if (bot < top){
+                    if (repeticiones == 0){
+                        // Primera Repeticion
+                        fortran += `
+\t${tabuladores}if (to_lower(input(cursor:cursor)) >= '${bot}' .and. to_lower(input(cursor:cursor)) <= '${top}') then
+\t${tabuladores}    allocate(character(len=1) :: lexeme)  ! Reservar espacio para el lexema
+\t${tabuladores}    lexeme = input(cursor:cursor)        ! Asignar el carácter al lexema
+\t${tabuladores}    if (.not. allocated(entrada_anterior)) then
+\t${tabuladores}        allocate(character(len=len(lexeme)) :: entrada_anterior)
+\t${tabuladores}    end if
+\t${tabuladores}    entrada_anterior = lexeme
+\t${tabuladores}    cursor = cursor + 1                  ! Avanzar el cursor
+`
+                        repeticiones++;
+                    // Ultima Repeticion
+                    }else if (repeticiones == total_nodos - 1) {
+                        // console.log("Ultima Repeticion");
+                        fortran += `
+\t${tabuladores}if (to_lower(input(cursor:cursor)) >= '${bot}' .and. to_lower(input(cursor:cursor)) <= '${top}') then
+\t    ${tabuladores}deallocate(lexeme)
+\t    ${tabuladores}allocate(character(len=1) :: lexeme)
+\t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor)
+\t    ${tabuladores}lexeme = lexeme // " - " // "${node.alias}"
+\t    ${tabuladores}deallocate(entrada_anterior)
+\t    ${tabuladores}entrada_anterior = lexeme
+\t    ${tabuladores}cursor = cursor + 1`
+                        repeticiones++;
+                        // console.log("Ultima Repeticion 2");
                     } else {
-                        // console.log("Case sensitive");
-                        if (bot < top){
-                            condicion += (condicion !== '' ? ' .or. ' : '') + `input(cursor:cursor) >= '${bot}' .and. input(cursor:cursor) <= '${top}'`
-                        }
-                    }
-                } else if(expr instanceof Character) { // Character
-                    if (element.expr.isCase == 'i') {
-                        // console.log("Case insensitive");
-                        condicion += (condicion !== '' ? ' .or. ' : '') + `to_lower(input(cursor:cursor)) == Char(${expr.text.charCodeAt(0)})`
-                    } else {
-                        // console.log("Case sensitive");
-                        condicion += (condicion !== '' ? ' .or. ' : '') + `input(cursor:cursor) == Char(${expr.text.charCodeAt(0)})`
+                        // Repeticiones intermedias
+                            fortran += `
+\t${tabuladores}if (to_lower(input(cursor:cursor)) >= '${bot}' .and. to_lower(input(cursor:cursor)) <= '${top}') then
+\t    ${tabuladores}deallocate(lexeme)
+\t    ${tabuladores}allocate(character(len=1) :: lexeme)
+\t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor)
+\t    ${tabuladores}deallocate(entrada_anterior)
+\t    ${tabuladores}entrada_anterior = lexeme`
+        fortran += `
+\t    ${tabuladores}cursor = cursor + 1`
+                        repeticiones++;
                     }
                 }
-                if (repeticiones == 0){
-                    // Primera Repeticion
-                    fortran += `
-    \t${tabuladores}if (${condicion}) then
+            } else {
+                // console.log("Sin Case insensitive");
+                if (bot < top){
+                    if (repeticiones == 0){
+                        // Primera Repeticion
+                        fortran += `
+    \t${tabuladores}if (input(cursor:cursor) >= '${bot}' .and. input(cursor:cursor) <= '${top}') then
     \t${tabuladores}    allocate(character(len=1) :: lexeme)  ! Reservar espacio para el lexema
     \t${tabuladores}    lexeme = input(cursor:cursor)        ! Asignar el carácter al lexema
     \t${tabuladores}    if (.not. allocated(entrada_anterior)) then
@@ -298,33 +330,35 @@ end program test`;
     \t${tabuladores}    end if
     \t${tabuladores}    entrada_anterior = lexeme
     \t${tabuladores}    cursor = cursor + 1                  ! Avanzar el cursor
-                    `
+    `
                     repeticiones++;
                     // Ultima Repeticion
-                }else if (repeticiones == total_nodos - 1) {
-                    // console.log("Ultima Repeticion");
-                    fortran += `
-    \t${tabuladores}if (${condicion}) then
-    \t${tabuladores}    deallocate(lexeme)
-    \t${tabuladores}    allocate(character(len=1) :: lexeme)
-    \t${tabuladores}    lexeme = entrada_anterior // input(cursor:cursor)
-    \t${tabuladores}    lexeme = lexeme // " - " // "${node.alias}"
-    \t${tabuladores}    deallocate(entrada_anterior)
-    \t${tabuladores}    entrada_anterior = lexeme
-    \t${tabuladores}    cursor = cursor + 1`
+                    }else if (repeticiones == total_nodos - 1) {
+                        // console.log("Ultima Repeticion");
+                        fortran += `
+    \t${tabuladores}if (input(cursor:cursor) >= '${bot}' .and. input(cursor:cursor) <= '${top}') then
+    \t    ${tabuladores}deallocate(lexeme)
+    \t    ${tabuladores}allocate(character(len=1) :: lexeme)
+    \t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor)
+    \t    ${tabuladores}lexeme = lexeme // " - " // "${node.alias}"
+    \t    ${tabuladores}deallocate(entrada_anterior)
+    \t    ${tabuladores}entrada_anterior = lexeme
+    \t    ${tabuladores}cursor = cursor + 1`
+                        repeticiones++;
+                        // console.log("Ultima Repeticion 2");
+                    } else {
+                        // Repeticiones intermedias
+                            fortran += `
+    \t${tabuladores}if (input(cursor:cursor) >= '${bot}' .and. (input(cursor:cursor) <= '${top}')) then
+    \t    ${tabuladores}deallocate(lexeme)
+    \t    ${tabuladores}allocate(character(len=1) :: lexeme)
+    \t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor)
+    \t    ${tabuladores}deallocate(entrada_anterior)
+    \t    ${tabuladores}entrada_anterior = lexeme`
+            fortran += `
+    \t    ${tabuladores}cursor = cursor + 1`
                     repeticiones++;
-                    // console.log("Ultima Repeticion 2");
-                } else {
-                    // Repeticiones intermedias
-                    fortran += `
-    \t${tabuladores}if (${condicion}) then
-    \t${tabuladores}    deallocate(lexeme)
-    \t${tabuladores}    allocate(character(len=1) :: lexeme)
-    \t${tabuladores}    lexeme = entrada_anterior // input(cursor:cursor)
-    \t${tabuladores}    deallocate(entrada_anterior)
-    \t${tabuladores}    entrada_anterior = lexeme
-    \t${tabuladores}    cursor = cursor + 1`
-                    repeticiones++;
+                    }
                 }
             }
         }
@@ -333,7 +367,7 @@ end program test`;
             let tabuladores = "\t".repeat(i);
             if (i >= repeticiones){
                 fortran += `
-    \t${tabuladores}return`;
+\t${tabuladores}return`;
             }else{
             fortran += `
 \t${tabuladores}end if`;
@@ -346,53 +380,64 @@ end program test`;
     }
     visitExpresion(node) {
         return node.expr.accept(this);
-    }
+    }   
+    
+    
+    
+    
+    
 
-    visitString(node) {
-    }
 
-    generateCaracteres(chars) {
-        if (chars.length === 0) return '';
-        return `
+visitString(node) {
+}
+
+generateCaracteres(chars) {
+    if (chars.length === 0) return '';
+    return `
 if (findloc([${chars
     .map((char) => `"${char}"`)
     .join(', ')}], input(i:i), 1) > 0) then
     lexeme = input(cursor:i)
     cursor = i + 1
     return
-end if`;
-    }
+end if
+    `;
+}
 
-    visitClase(node) {
-        return `
+visitClase(node) {
+    console.log('CLASE', node)
+    return `
 i = cursor
-    ${this.generateCaracteres(
-        node.chars.filter((node) => typeof node === 'string')
-    )}
-    ${node.chars
-        .filter((node) => node instanceof Rango)
-        .map((range) => range.accept(this))
-        .join('\n')}
-        `;
-    }
+${this.generateCaracteres(
+    node.chars.filter((node) => typeof node === 'string')
+)}
+${node.chars
+    .filter((node) => node instanceof Rango)
+    .map((range) => range.accept(this))
+    .join('\n')}
+    `;
+}
 
-    visitRango(node) {
-        return `
+visitRango(node) {
+    console.log('RANGO', node)
+    return `
 if (input(i:i) >= "${node.bottom}" .and. input(i:i) <= "${node.top}") then
     lexeme = input(cursor:i)
     cursor = i + 1
     return
 end if
     `;
-    }
+}
 
-    visitCharacter(node) {
-    //     return `
-    // if (input(i:i) >= "${node.bottom}" .and. input(i:i) <= "${node.top}") then
-    //     lexeme = input(cursor:i)
-    //     cursor = i + 1
-    //     return
-    // end if
-    //     `;
-    }
+visitCharacter(node) {
+    console.log('CHARACTER', node)
+//     return `
+// if (input(i:i) >= "${node.bottom}" .and. input(i:i) <= "${node.top}") then
+//     lexeme = input(cursor:i)
+//     cursor = i + 1
+//     return
+// end if
+//     `;
+}
+
 }

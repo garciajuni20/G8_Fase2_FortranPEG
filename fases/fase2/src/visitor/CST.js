@@ -88,3 +88,14 @@ export class Rango extends Node {
     }
 }
     
+export class Character extends Node {
+    constructor(text) {
+        super();
+        this.text = text;
+    }
+
+    accept(visitor) {
+        return visitor.visitCharacter(this);
+    }
+}
+    

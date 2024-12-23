@@ -87,7 +87,9 @@ contenidoClase
   = bottom:$[^\[\]] "-" top:$[^\[\]] {
     return new n.Rango(bottom, top);
   }
-  / $[^\[\]]
+  / [^\[\]] {
+    return new n.Character(text());
+  }
   
 literales
   = '"' @stringDobleComilla* '"'  
