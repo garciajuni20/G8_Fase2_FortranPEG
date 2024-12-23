@@ -44,7 +44,7 @@ const analizar = () => {
             const url = URL.createObjectURL(blob);
             const button = document.getElementById('ButtomDownload');
             button.href = url;
-            salida.setValue(fileContents);
+            salida.setValue("Análisis Exitoso");
         }
 
         // salida.setValue("Análisis Exitoso");
