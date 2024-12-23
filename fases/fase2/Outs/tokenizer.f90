@@ -19,7 +19,7 @@ contains
         integer, intent(inout) :: cursor
         character(len=:), allocatable :: lexeme
         character(len=:), allocatable :: entrada_anterior
-        character(len=:), allocatable :: lexeme_accumulated
+        character(len=:), allocatable :: lexemeAux
         logical :: cicloActivo
         integer :: cursorAux
         integer :: i
@@ -31,22 +31,32 @@ contains
         end if
 
         
-                        cicloActivo = .true.
-                        cursorAux = cursor  
-                        allocate(character(len=0) :: lexeme_accumulated)  
-                        do while (cicloActivo)	
-                            if ( "ar" == input(cursor:cursor + 1) ) then
-                                cursor = cursor + 2
-                                lexeme_accumulated = lexeme_accumulated // "ar"
+                            cursorAux = cursor  
+                            cicloActivo = .true.
+                            allocate(character(len=0) :: lexemeAux)  
+                            if ( "a" == input(cursor:cursor + 0) ) then
+                                cursor = cursor + 1
+                                lexemeAux = "a"
                             else
-                                cicloActivo = .false.
+                                print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
+                                allocate(character(len=5) :: lexeme)
+                                lexeme = "ERROR"
+                                return
                             end if
-                        end do
-                        if (len(lexeme_accumulated) > 0) then
-                            allocate(character(len=len(lexeme_accumulated)) :: lexeme)
-                            lexeme = lexeme_accumulated
-                            return
-                        end if
+                            do while (cicloActivo)	
+                                if ( "a" == input(cursor:cursor + 0) ) then
+                                    cursor = cursor + 1
+                                    lexemeAux = lexemeAux // "a"
+                                else
+                                    cicloActivo = .false.
+                                end if
+                            end do
+                            if (len(lexemeAux) > 0) then
+                                allocate(character(len=len(lexemeAux)) :: lexeme)
+                                lexeme = lexemeAux
+                                return
+                            end if
+                        
 
         print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
         lexeme = "ERROR"

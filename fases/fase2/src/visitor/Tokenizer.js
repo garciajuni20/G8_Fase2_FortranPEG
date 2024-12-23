@@ -1,6 +1,6 @@
 import Visitor from './Visitor.js';
 import { Rango,String,Clase,Character } from './CST.js';
-import { CondicionalStrSencilla, LiteralPor } from './Utilidades.js';
+import { CondicionalStrings, LiteralPor } from './Utilidades.js';
 export default class Tokenizer extends Visitor {
     generateTokenizer(grammar) {
         return `
@@ -24,7 +24,7 @@ contains
         integer, intent(inout) :: cursor
         character(len=:), allocatable :: lexeme
         character(len=:), allocatable :: entrada_anterior
-        character(len=:), allocatable :: lexeme_accumulated
+        character(len=:), allocatable :: lexemeAux
         logical :: cicloActivo
         integer :: cursorAux
         integer :: i
@@ -120,33 +120,60 @@ end program test`;
         if (node.exprs.length == 1){  // Si solo hay una expresión en la gramática pero solo literales
             if (node.exprs[0].expr instanceof String){
                 let condicional;
+                //switch para el manejo de ?*+
                 switch(node.exprs[0].qty){
-                    
                     case "*":
-                        condicional = CondicionalStrSencilla(node);
-                        return `
-                        cicloActivo = .true.
-                        cursorAux = cursor  
-                        allocate(character(len=0) :: lexeme_accumulated)  
-                        do while (cicloActivo)	
-                            if ( ${condicional} ) then
-                                cursor = cursor + ${node.exprs[0].expr.val.length}
-                                lexeme_accumulated = lexeme_accumulated // "${node.exprs[0].expr.val}"
+                        let texto = LiteralPor(node.exprs[0]) + `
                             else
                                 cicloActivo = .false.
                             end if
                         end do
-                        if (len(lexeme_accumulated) > 0) then
-                            allocate(character(len=len(lexeme_accumulated)) :: lexeme)
-                            lexeme = lexeme_accumulated
+                        if (len(lexemeAux) > 0) then
+                            allocate(character(len=len(lexemeAux) + len(" - Literal")) :: lexeme)
+                            lexeme = trim(lexemeAux) // " - Literal"
                             return
                         end if`
+                        return texto;
 
-                /*case "+":
-                    return PositivaLiterales(node.expr);
-
+                case "+":
+                    condicional = CondicionalStrings(node.exprs[0]);
+                        return `
+                            cursorAux = cursor  
+                            cicloActivo = .true.
+                            allocate(character(len=0) :: lexemeAux)  
+                            if ( ${condicional} ) then
+                                cursor = cursor + ${node.exprs[0].expr.val.length}
+                                lexemeAux = "${node.exprs[0].expr.val}"
+                            else
+                                print *, "error lexico en col ", cursor, ', "'//input(cursor:cursor)//'"'
+                                allocate(character(len=5) :: lexeme)
+                                lexeme = "ERROR"
+                                return
+                            end if
+                            do while (cicloActivo)	
+                                if ( ${condicional} ) then
+                                    cursor = cursor + ${node.exprs[0].expr.val.length}
+                                    lexemeAux = lexemeAux // "${node.exprs[0].expr.val}"
+                                else
+                                    cicloActivo = .false.
+                                end if
+                            end do
+                            if (len(lexemeAux) > 0) then
+                                allocate(character(len=len(lexemeAux)) :: lexeme)
+                                lexeme = lexemeAux
+                                return
+                            end if
+                        `
                 case "?":
-                    return TernariaLiterales(node.expr);*/
+                    condicional = CondicionalStrings(node.exprs[0]);
+                    return `
+                        cursorAux = cursor  
+                        allocate(character(len=0) :: lexemeAux)  
+                        if ( ${condicional} ) then
+                            cursor = cursor + ${node.exprs[0].expr.val.length}
+                            lexemeAux = "${node.exprs[0].expr.val}"
+                        end if
+                    `
                 default:
                     const exprVal = node.exprs[0].expr.val;
                     const exprLength = exprVal.length;
@@ -157,7 +184,7 @@ end program test`;
                         lexeme = lexeme // " - " // "${node.alias}"
                         cursor = cursor + ${exprLength}`;
                 
-                    condicional = CondicionalStrSencilla(node);
+                    condicional = CondicionalStrings(node.exprs[0]);
                 
                     return `
                     if (${condicional}) then !Foo
@@ -202,93 +229,47 @@ end program test`;
         let repeticiones = 0;
         let total_nodos = node.exprs.length;
         let longitud = 0;
-        // console.log(node);
         node.exprs.forEach(element => {
             const tabuladores = "\t".repeat(repeticiones);
-            // console.log(element.expr);
-            if (element.expr instanceof String){
-                // Case insensitive
-                if (element.expr.isCase == 'i') {
-                    if (repeticiones == 0){
-                        // Primera Repeticion
-                        fortran += `
-\t${tabuladores}if (to_lower("${element.expr.val}") == to_lower(input(cursor:cursor + ${element.expr.val.length - 1}))) then 
-\t    ${tabuladores}allocate(character(len=${element.expr.val.length}) :: lexeme)
-\t    ${tabuladores}allocate(character(len=${element.expr.val.length}) :: entrada_anterior)
-\t    ${tabuladores}lexeme = input(cursor:cursor + ${element.expr.val.length - 1})
-\t    ${tabuladores}entrada_anterior = lexeme
-\t    ${tabuladores}cursor = cursor + ${element.expr.val.length} `
-                    repeticiones++;
-                    longitud = element.expr.val.length;
-                    // Ultima Repeticion
-                    } else if(repeticiones == total_nodos - 1){
-                        longitud += element.expr.val.length;
-                        fortran += `
-\t${tabuladores}if (to_lower("${element.expr.val}") == to_lower(input(cursor:cursor + ${element.expr.val.length - 1}))) then 
-\t    ${tabuladores}deallocate(lexeme)
-\t    ${tabuladores}allocate(character(len=${longitud}) :: lexeme)
-\t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor + ${element.expr.val.length - 1})
-\t    ${tabuladores}lexeme = lexeme // " - " // "${node.alias}"
-\t    ${tabuladores}deallocate(entrada_anterior)
-\t    ${tabuladores}entrada_anterior = lexeme
-\t    ${tabuladores}cursor = cursor + ${element.expr.val.length}`
-                        repeticiones++;
-                        // Repeticiones intermedias
-                    } else {
-                        longitud += element.expr.val.length;
-                        fortran += `
-\t${tabuladores}if (to_lower("${element.expr.val}") == to_lower(input(cursor:cursor + ${element.expr.val.length - 1}))) then 
-\t    ${tabuladores}deallocate(lexeme)
-\t    ${tabuladores}allocate(character(len=${longitud}) :: lexeme)
-\t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor + ${element.expr.val.length - 1})
-\t    ${tabuladores}deallocate(entrada_anterior)
-\t    ${tabuladores}entrada_anterior = lexeme`
-        fortran += `
-\t    ${tabuladores}cursor = cursor + ${element.expr.val.length}`
-                repeticiones++;
-                    } 
-                    // Sin Case insensitive
+            if (element.expr instanceof String) {
+                const exprVal = element.expr.val;
+                const exprLength = exprVal.length;
+                const inputSlice = `input(cursor:cursor + ${exprLength - 1})`;
+                const caseInsensitiveCheck = element.expr.isCase === 'i' 
+                    ? `to_lower("${exprVal}") == to_lower(${inputSlice})`
+                    : `"${exprVal}" == ${inputSlice}`;
+        
+                // Genera la base del bloque Fortran
+                let fortranBase = `
+        ${tabuladores}if (${caseInsensitiveCheck}) then`;
+        
+                if (repeticiones === 0) {
+                    // Primera repetición
+                    fortran += `${fortranBase}
+        \t${tabuladores}allocate(character(len=${exprLength}) :: lexeme)
+        \t${tabuladores}allocate(character(len=${exprLength}) :: entrada_anterior)
+        \t${tabuladores}lexeme = ${inputSlice}
+        \t${tabuladores}entrada_anterior = lexeme
+        \t${tabuladores}cursor = cursor + ${exprLength}`;
+                    longitud = exprLength;
+        
                 } else {
-                    if (repeticiones == 0){
-                        // Primera Repeticion
-                        fortran += `
-\t${tabuladores}if ("${element.expr.val}" == input(cursor:cursor + ${element.expr.val.length - 1})) then 
-\t    ${tabuladores}allocate(character(len=${element.expr.val.length}) :: lexeme)
-\t    ${tabuladores}allocate(character(len=${element.expr.val.length}) :: entrada_anterior)
-\t    ${tabuladores}lexeme = "${element.expr.val}"
-\t    ${tabuladores}entrada_anterior = lexeme
-\t    ${tabuladores}cursor = cursor + ${element.expr.val.length} `
-                    repeticiones++;
-                    longitud = element.expr.val.length;
-                    // Ultima Repeticion
-                    } else if(repeticiones == total_nodos - 1){
-                        longitud += element.expr.val.length;
-                        fortran += `
-\t${tabuladores}if ("${element.expr.val}" == input(cursor:cursor + ${element.expr.val.length - 1})) then 
-\t    ${tabuladores}deallocate(lexeme)
-\t    ${tabuladores}allocate(character(len=${longitud}) :: lexeme)
-\t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor + ${element.expr.val.length - 1})
-\t    ${tabuladores}lexeme = lexeme // " - " // "${node.alias}"
-\t    ${tabuladores}deallocate(entrada_anterior)
-\t    ${tabuladores}entrada_anterior = lexeme
-\t    ${tabuladores}cursor = cursor + ${element.expr.val.length}`
-                        repeticiones++;
-                        // Repeticiones intermedias
-                    } else {
-                        longitud += element.expr.val.length;
-                        fortran += `
-\t${tabuladores}if ("${element.expr.val}" == input(cursor:cursor + ${element.expr.val.length - 1})) then 
-\t    ${tabuladores}deallocate(lexeme)
-\t    ${tabuladores}allocate(character(len=${longitud}) :: lexeme)
-\t    ${tabuladores}lexeme = entrada_anterior // input(cursor:cursor + ${element.expr.val.length - 1})
-\t    ${tabuladores}deallocate(entrada_anterior)
-\t    ${tabuladores}entrada_anterior = lexeme`
-        fortran += `
-\t    ${tabuladores}cursor = cursor + ${element.expr.val.length}`
+                    // Repeticiones intermedias y última
+                    longitud += exprLength;
+                    const isLastRepetition = repeticiones === total_nodos - 1;
+                    const aliasAppend = isLastRepetition ? ` // " - " // "${node.alias}"` : "";
+        
+                    fortran += `${fortranBase}
+        \t${tabuladores}deallocate(lexeme)
+        \t${tabuladores}allocate(character(len=${longitud}) :: lexeme)
+        \t${tabuladores}lexeme = entrada_anterior // ${inputSlice}${aliasAppend}
+        \t${tabuladores}deallocate(entrada_anterior)
+        \t${tabuladores}entrada_anterior = lexeme
+        \t${tabuladores}cursor = cursor + ${exprLength}`;
+                }
+        
                 repeticiones++;
-                    } 
-            }
-        }else if (element.expr instanceof Clase){
+            }else if (element.expr instanceof Clase){
             var condicion = ''
             for(const expr of element.expr.chars) {
                 if(expr instanceof Rango) {
